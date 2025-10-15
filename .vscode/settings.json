@@ -1,0 +1,18 @@
+{
+    "terminal.integrated.profiles.windows": {
+        "MSYS2 MinGW64": {
+            "path": "cmd.exe",
+            "args": [
+                "/c",
+                "C:\\msys64\\msys2_shell.cmd -defterm -here -no-start -mingw64"
+            ]
+        }
+    },
+    "terminal.integrated.defaultProfile.windows": "MSYS2 MinGW64",
+    "files.associations": {
+        "nifm.h": "c",
+        "minini.h": "c",
+        "ftpsrv.h": "c",
+        "errno.h": "c"
+    }
+}
