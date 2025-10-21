@@ -37,12 +37,26 @@ include $(DEVKITPRO)/libnx/switch_rules
 #   of a homebrew executable (.nro). This is intended to be used for sysmodules.
 #   NACP building is skipped as well.
 #---------------------------------------------------------------------------------
-TARGET		:=	$(notdir $(CURDIR))
-BUILD		:=	build
-SOURCES		:=	source source/util include/minIni-nx/source
+TARGET		:=	DClight-Brightness
+BUILD		:=	build.nx
+SOURCES		:=	src lib/minIni-nx/source
+RESOURCES	:=	resources
 DATA		:=	data
-INCLUDES	:=	include include/minIni-nx/include
-#ROMFS	:=	romfs
+INCLUDES	:=	src lib/minIni-nx/include
+
+APP_TITLE	:=	DClight Brightness
+APP_AUTHOR	:=	Hahappify PTTSCY
+
+ROMFS				:=	$(BUILD)/romfs
+BOREALIS_PATH		:=	lib/borealis
+BOREALIS_RESOURCES	:=	romfs:/borealis/
+APP_RESOURCES		:=	romfs:/
+
+#---------------------------------------------------------------------------------
+# version control constants
+#---------------------------------------------------------------------------------
+TARGET_VERSION	:= $("1.0.0")
+APP_VERSION		:= $(TARGET_VERSION)
 
 #---------------------------------------------------------------------------------
 # options for code generation
@@ -50,19 +64,19 @@ INCLUDES	:=	include include/minIni-nx/include
 ARCH	:=	-march=armv8-a+crc+crypto -mtune=cortex-a57 -mtp=soft -fPIE
 
 CFLAGS	:=	-g -Wall -O2 -ffunction-sections \
-			$(ARCH) $(DEFINES) `curl-config --cflags`
+			$(ARCH) $(DEFINES)
 
-CFLAGS	+=	$(INCLUDE) -D__SWITCH__
+CFLAGS	+=	$(INCLUDE) -D__SWITCH__ \
+			-DAPP_TITLE="\"$(APP_TITLE)\"" \
+			-DBOREALIS_RESOURCES="\"$(BOREALIS_RESOURCES)\"" \
+			-DAPP_RESOURCES="\"$(APP_RESOURCES)\""
 
-# Enable minIni NX backend
-DEFINES += -DMININI_USE_NX=1 -DMININI_USE_STDIO=0
-
-CXXFLAGS	:= $(CFLAGS) -fno-rtti -fno-exceptions
+CXXFLAGS	:= $(CFLAGS) -std=c++1z
 
 ASFLAGS	:=	-g $(ARCH)
 LDFLAGS	=	-specs=$(DEVKITPRO)/libnx/switch.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 
-LIBS	:= -lnx `curl-config --libs`
+LIBS	:= -lnx -lm
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing
@@ -70,6 +84,7 @@ LIBS	:= -lnx `curl-config --libs`
 #---------------------------------------------------------------------------------
 LIBDIRS	:= $(PORTLIBS) $(LIBNX)
 
+include $(TOPDIR)/$(BOREALIS_PATH)/library/borealis.mk
 
 #---------------------------------------------------------------------------------
 # no real need to edit anything past this point unless you need to add additional
@@ -116,18 +131,9 @@ export INCLUDE	:=	$(foreach dir,$(INCLUDES),-I$(CURDIR)/$(dir)) \
 
 export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)/lib)
 
-ifeq ($(strip $(CONFIG_JSON)),)
-	jsons := $(wildcard *.json)
-	ifneq (,$(findstring $(TARGET).json,$(jsons)))
-		export APP_JSON := $(TOPDIR)/$(TARGET).json
-	else
-		ifneq (,$(findstring config.json,$(jsons)))
-			export APP_JSON := $(TOPDIR)/config.json
-		endif
-	endif
-else
-	export APP_JSON := $(TOPDIR)/$(CONFIG_JSON)
-endif
+# DClight-nro 强制编译为 .nro，禁用 JSON 检测
+# 明确设置 APP_JSON 为空，避免从父 Makefile 继承
+export APP_JSON :=
 
 ifeq ($(strip $(ICON)),)
 	icons := $(wildcard *.jpg)
@@ -158,32 +164,20 @@ ifneq ($(ROMFS),)
 	export NROFLAGS += --romfsdir=$(CURDIR)/$(ROMFS)
 endif
 
-.PHONY: $(BUILD) clean all dclight-nro
+.PHONY: $(BUILD) $(ROMFS) clean all
 
 #---------------------------------------------------------------------------------
-all: $(BUILD) dclight-nro
+all: $(BUILD)
 
-$(BUILD):
+$(ROMFS):
 	@[ -d $@ ] || mkdir -p $@
-	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
-	@rm -rf out
-	@mkdir -p out/atmosphere/contents/0100000002052918/flags
-	@mkdir -p out/config/DClight
-	@mkdir -p out/switch
-	@cp config/DClight/config.ini out/config/DClight/config.ini
-# 	@mkdir -p out/config/$(TARGET)
-#   这个boot2.flag是为了让Atmosphere开机自启该服务
-# 	@touch out/atmosphere/contents/0100000002052918/flags/boot2.flag
-	@cp $(TARGET).nsp out/atmosphere/contents/0100000002052918/exefs.nsp
-	@cp toolbox.json out/atmosphere/contents/0100000002052918/toolbox.json
+	@echo Merging ROMFS...
+	@cp -ruf $(CURDIR)/$(BOREALIS_PATH)/resources/. $(CURDIR)/$(ROMFS)/borealis/
+	@cp -ruf $(CURDIR)/$(RESOURCES)/. $(CURDIR)/$(ROMFS)/
 
-dclight-nro: $(BUILD)
-	@echo Building DClight-nro...
-	@$(MAKE) --no-print-directory -C DClight-nro TOPDIR=$(CURDIR)/DClight-nro
-	@echo Copying DClight-nro output to out/switch...
-	@mkdir -p out/switch
-	@cp DClight-nro/DClight-Brightness.nro out/switch/DClight-Brightness.nro
-	@echo DClight-nro build complete
+$(BUILD): $(ROMFS)
+	@[ -d $@ ] || mkdir -p $@
+	@MSYS2_ARG_CONV_EXCL="-D;$(MSYS2_ARG_CONV_EXCL)" $(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
 
 #---------------------------------------------------------------------------------
 clean:
@@ -193,9 +187,6 @@ ifeq ($(strip $(APP_JSON)),)
 else
 	@rm -fr $(BUILD) $(TARGET).nsp $(TARGET).nso $(TARGET).npdm $(TARGET).elf
 endif
-	@echo Cleaning DClight-nro...
-	@$(MAKE) --no-print-directory -C DClight-nro clean TOPDIR=$(CURDIR)/DClight-nro
-	@rm -rf out
 
 
 #---------------------------------------------------------------------------------

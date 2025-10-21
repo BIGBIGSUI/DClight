@@ -224,25 +224,17 @@ static Result gfx_init(void) {
     rc = viSetLayerScalingMode(&g_layer, ViScalingMode_FitToLayer);
     if (R_FAILED(rc)) return rc;
 
-    s32 layerZ = 0;
-    if (R_SUCCEEDED(viGetZOrderCountMax(&g_display, &layerZ)) && layerZ > 0) {
-        log_info("viSetLayerZ(%d)...", layerZ);
-        rc = viSetLayerZ(&g_layer, layerZ);
-        if (R_FAILED(rc)) return rc;
-    }
+    s32 layerZ = 250;
+    log_info("viSetLayerZ(%d)...", layerZ);
+    rc = viSetLayerZ(&g_layer, layerZ);
+    if (R_FAILED(rc)) return rc;
 
-    // 按 tesla.hpp 将 Layer 加入多个层栈（至少 Default）
-    log_info("viAddToLayerStack(Default/Lcd/others)...");
+    // 保守策略：仅添加到必要的图层栈（Default + Screenshot）
+    log_info("viAddToLayerStack(Default and Screenshot)...");
     rc = viAddToLayerStack(&g_layer, ViLayerStack_Default);
     if (R_FAILED(rc)) return rc;
-    // 可选：截图/录制/任意/最后一帧/空/LCD/调试
-    viAddToLayerStack(&g_layer, ViLayerStack_Screenshot);
-    viAddToLayerStack(&g_layer, ViLayerStack_Recording);
-    viAddToLayerStack(&g_layer, ViLayerStack_Arbitrary);
-    viAddToLayerStack(&g_layer, ViLayerStack_LastFrame);
-    viAddToLayerStack(&g_layer, ViLayerStack_Null);
-    viAddToLayerStack(&g_layer, ViLayerStack_ApplicationForDebug);
-    viAddToLayerStack(&g_layer, ViLayerStack_Lcd);
+    rc = viAddToLayerStack(&g_layer, ViLayerStack_Screenshot);
+    if (R_FAILED(rc)) return rc;
 
     log_info("viSetLayerSize(%u,%u)...", CFG_LayerWidth, CFG_LayerHeight);
     rc = viSetLayerSize(&g_layer, CFG_LayerWidth, CFG_LayerHeight);
@@ -266,15 +258,40 @@ static Result gfx_init(void) {
 
 static void gfx_exit(void) {
     if (!g_gfxInitialized) return;
+    
+    log_info("开始清理图形资源...");
+    
+    // 清理图形相关资源
     framebufferClose(&g_framebuffer);
     nwindowClose(&g_window);
-    // 彻底销毁 Managed Layer，避免残留占用
-    log_info("viDestroyManagedLayer...");
-    viDestroyManagedLayer(&g_layer);
-    viCloseDisplay(&g_display);
+    
+    // 安全清理VI资源，避免与其他 overlay 冲突（仿照 pop-windows-main）
+    log_info("安全清理VI资源...");
+    
+    // 检查VI服务是否仍然可用
+    Result rc = 0;
+    
+    // 尝试销毁Managed Layer（容错处理）
+    rc = viDestroyManagedLayer(&g_layer);
+    if (R_FAILED(rc)) {
+        log_info("viDestroyManagedLayer失败 (可能已被其他程序清理): 0x%x", rc);
+    }
+    
+    // 尝试关闭Display（容错处理）
+    rc = viCloseDisplay(&g_display);
+    if (R_FAILED(rc)) {
+        log_info("viCloseDisplay失败 (可能已被其他程序清理): 0x%x", rc);
+    }
+    
     eventClose(&g_vsyncEvent);
+    
+    // 最后尝试退出VI服务
+    // 如果其他程序已经调用了viExit()，这里的调用可能会失败，但不会导致程序崩溃
     viExit();
+    
     g_gfxInitialized = false;
+    
+    log_info("图形资源清理完成");
 }
 
 #ifdef __cplusplus
@@ -295,60 +312,55 @@ void __libnx_initheap(void)
     fake_heap_end = inner_heap + sizeof(inner_heap);
 }
 
-// 必要服务初始化（最小化）
+// 必要服务初始化（完全仿照 pop-windows-main 的严格错误处理）
 void __appInit(void)
 {
-    // 参考 libnx 默认初始化，确保时间与 SD 卡挂载可用
-    Result rc = smInitialize();
-    if (R_FAILED(rc)) return;
-
-    // AppletType_None 时 appletInitialize 返回 0，作为类型选择器
-    appletInitialize();
-    timeInitialize();
-    fsInitialize();
+    log_info("应用程序初始化开始...");
+    
+    Result rc = 0;
+    
+    // 基础服务初始化
+    rc = smInitialize();
+    if (R_FAILED(rc)) {
+        log_error("smInitialize失败: 0x%x", rc);
+        fatalThrow(rc);
+    }
+    
+    rc = fsInitialize();
+    if (R_FAILED(rc)) {
+        log_error("fsInitialize失败: 0x%x", rc);
+        fatalThrow(rc);
+    }
+    
     fsdevMountSdmc();
-    // HID 在 None 类型下不是必须，按需初始化
-    hidInitialize();
-
-    // NV 初始化提前到 appinit，避免在 gfx_init 阶段卡住，并输出详细日志
-    AppletType appType = appletGetAppletType();
-    log_info("appletGetAppletType=%d", (int)appType);
-    log_info("nvInitialize... (force type=%d, tmem=0x%x)", __nx_nv_service_type, __nx_nv_transfermem_size);
-    Result rc2 = nvInitialize();
-    if (R_FAILED(rc2)) {
-        log_error("nvInitialize 失败: 0x%x", rc2);
-    } else {
-        log_info("nvInitialize 成功");
+    
+    // 其他服务初始化
+    rc = hidInitialize();
+    if (R_FAILED(rc)) {
+        log_error("hidInitialize失败: 0x%x", rc);
+        fatalThrow(rc);
     }
-    log_info("nvMapInit...");
-    rc2 = nvMapInit();
-    if (R_FAILED(rc2)) {
-        log_error("nvMapInit 失败: 0x%x", rc2);
-    } else {
-        log_info("nvMapInit 成功");
-    }
-    log_info("nvFenceInit...");
-    rc2 = nvFenceInit();
-    if (R_FAILED(rc2)) {
-        log_error("nvFenceInit 失败: 0x%x", rc2);
-    } else {
-        log_info("nvFenceInit 成功");
-    }
+    
+    log_info("应用程序初始化完成");
 }
 
-// 服务释放
+// 服务释放（完全仿照 pop-windows-main 的清理顺序）
 void __appExit(void)
 {
+    log_info("应用程序退出开始...");
+    
+    // 优先清理图形资源，避免与其他叠加层冲突
+    gfx_exit();
+    
+    // 清理其他服务
     hidExit();
+    
+    // 最后清理基础服务
+    fsdevUnmountAll();
     fsExit();
-    // NV 相关清理
-    log_info("nvFenceExit...");
-    nvFenceExit();
-    log_info("nvMapExit...");
-    nvMapExit();
-    log_info("nvExit...");
-    nvExit();
     smExit();
+    
+    log_info("应用程序退出完成");
 }
 
 #ifdef __cplusplus

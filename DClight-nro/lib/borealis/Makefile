@@ -37,12 +37,19 @@ include $(DEVKITPRO)/libnx/switch_rules
 #   of a homebrew executable (.nro). This is intended to be used for sysmodules.
 #   NACP building is skipped as well.
 #---------------------------------------------------------------------------------
-TARGET		:=	$(notdir $(CURDIR))
-BUILD		:=	build
-SOURCES		:=	source source/util include/minIni-nx/source
+TARGET		:=	borealis_example
+BUILD		:=	build.nx
+SOURCES		:=	example
 DATA		:=	data
-INCLUDES	:=	include include/minIni-nx/include
-#ROMFS	:=	romfs
+ICON		:=	resources/icon/borealis.jpg
+INCLUDES	:=	example
+APP_TITLE	:=	borealis example
+APP_AUTHOR	:=	natinusala
+APP_VERSION	:=	1.0
+
+ROMFS				:=	resources
+BOREALIS_PATH		:=	.
+BOREALIS_RESOURCES	:=	romfs:/
 
 #---------------------------------------------------------------------------------
 # options for code generation
@@ -50,19 +57,17 @@ INCLUDES	:=	include include/minIni-nx/include
 ARCH	:=	-march=armv8-a+crc+crypto -mtune=cortex-a57 -mtp=soft -fPIE
 
 CFLAGS	:=	-g -Wall -O2 -ffunction-sections \
-			$(ARCH) $(DEFINES) `curl-config --cflags`
+			$(ARCH) $(DEFINES)
 
-CFLAGS	+=	$(INCLUDE) -D__SWITCH__
+CFLAGS	+=	$(INCLUDE) -D__SWITCH__ \
+			-DBOREALIS_RESOURCES="\"$(BOREALIS_RESOURCES)\""
 
-# Enable minIni NX backend
-DEFINES += -DMININI_USE_NX=1 -DMININI_USE_STDIO=0
-
-CXXFLAGS	:= $(CFLAGS) -fno-rtti -fno-exceptions
+CXXFLAGS	:= $(CFLAGS) -fno-exceptions -std=c++1z -O2
 
 ASFLAGS	:=	-g $(ARCH)
 LDFLAGS	=	-specs=$(DEVKITPRO)/libnx/switch.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 
-LIBS	:= -lnx `curl-config --libs`
+LIBS	:= -lnx -lm
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing
@@ -70,6 +75,7 @@ LIBS	:= -lnx `curl-config --libs`
 #---------------------------------------------------------------------------------
 LIBDIRS	:= $(PORTLIBS) $(LIBNX)
 
+include $(TOPDIR)/library/borealis.mk
 
 #---------------------------------------------------------------------------------
 # no real need to edit anything past this point unless you need to add additional
@@ -158,32 +164,14 @@ ifneq ($(ROMFS),)
 	export NROFLAGS += --romfsdir=$(CURDIR)/$(ROMFS)
 endif
 
-.PHONY: $(BUILD) clean all dclight-nro
+.PHONY: $(BUILD) clean all
 
 #---------------------------------------------------------------------------------
-all: $(BUILD) dclight-nro
+all: $(BUILD)
 
 $(BUILD):
 	@[ -d $@ ] || mkdir -p $@
 	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
-	@rm -rf out
-	@mkdir -p out/atmosphere/contents/0100000002052918/flags
-	@mkdir -p out/config/DClight
-	@mkdir -p out/switch
-	@cp config/DClight/config.ini out/config/DClight/config.ini
-# 	@mkdir -p out/config/$(TARGET)
-#   这个boot2.flag是为了让Atmosphere开机自启该服务
-# 	@touch out/atmosphere/contents/0100000002052918/flags/boot2.flag
-	@cp $(TARGET).nsp out/atmosphere/contents/0100000002052918/exefs.nsp
-	@cp toolbox.json out/atmosphere/contents/0100000002052918/toolbox.json
-
-dclight-nro: $(BUILD)
-	@echo Building DClight-nro...
-	@$(MAKE) --no-print-directory -C DClight-nro TOPDIR=$(CURDIR)/DClight-nro
-	@echo Copying DClight-nro output to out/switch...
-	@mkdir -p out/switch
-	@cp DClight-nro/DClight-Brightness.nro out/switch/DClight-Brightness.nro
-	@echo DClight-nro build complete
 
 #---------------------------------------------------------------------------------
 clean:
@@ -193,9 +181,6 @@ ifeq ($(strip $(APP_JSON)),)
 else
 	@rm -fr $(BUILD) $(TARGET).nsp $(TARGET).nso $(TARGET).npdm $(TARGET).elf
 endif
-	@echo Cleaning DClight-nro...
-	@$(MAKE) --no-print-directory -C DClight-nro clean TOPDIR=$(CURDIR)/DClight-nro
-	@rm -rf out
 
 
 #---------------------------------------------------------------------------------
