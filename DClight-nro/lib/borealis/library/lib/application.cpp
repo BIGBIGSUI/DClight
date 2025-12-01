@@ -374,6 +374,22 @@ bool Application::mainLoop()
     // Trigger gamepad events
     // TODO: Translate axis events to dpad events here
 
+    // Map left stick axes to DPAD.
+    // We only OR presses in – physical d-pad state from the controller/keyboard
+    // remains intact.
+    float lx = Application::gamepad.axes[GLFW_GAMEPAD_AXIS_LEFT_X];
+    float ly = Application::gamepad.axes[GLFW_GAMEPAD_AXIS_LEFT_Y];
+
+    if (lx < -0.5f)
+        Application::gamepad.buttons[GLFW_GAMEPAD_BUTTON_DPAD_LEFT] = GLFW_PRESS;
+    else if (lx > 0.5f)
+        Application::gamepad.buttons[GLFW_GAMEPAD_BUTTON_DPAD_RIGHT] = GLFW_PRESS;
+
+    if (ly < -0.5f)
+        Application::gamepad.buttons[GLFW_GAMEPAD_BUTTON_DPAD_UP] = GLFW_PRESS;
+    else if (ly > 0.5f)
+        Application::gamepad.buttons[GLFW_GAMEPAD_BUTTON_DPAD_DOWN] = GLFW_PRESS;
+
     bool anyButtonPressed               = false;
     bool repeating                      = false;
     static retro_time_t buttonPressTime = 0;
@@ -483,10 +499,7 @@ void Application::onGamepadButtonPressed(char button, bool repeating)
 {
     if (Application::blockInputsTokens != 0)
         return;
-
-    if (repeating && Application::repetitionOldFocus == Application::currentFocus)
-        return;
-
+    
     Application::repetitionOldFocus = Application::currentFocus;
 
     // Actions

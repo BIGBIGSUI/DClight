@@ -167,15 +167,15 @@ $(BUILD):
 	@[ -d $@ ] || mkdir -p $@
 	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
 	@rm -rf out
-	@mkdir -p out/atmosphere/contents/0100000002052918/flags
+	@mkdir -p out/atmosphere/contents/0000000002052918/flags
 	@mkdir -p out/config/DClight
 	@mkdir -p out/switch
 	@cp config/DClight/config.ini out/config/DClight/config.ini
 # 	@mkdir -p out/config/$(TARGET)
 #   这个boot2.flag是为了让Atmosphere开机自启该服务
-# 	@touch out/atmosphere/contents/0100000002052918/flags/boot2.flag
-	@cp $(TARGET).nsp out/atmosphere/contents/0100000002052918/exefs.nsp
-	@cp toolbox.json out/atmosphere/contents/0100000002052918/toolbox.json
+# 	@touch out/atmosphere/contents/0000000002052918/flags/boot2.flag
+	@cp $(TARGET).nsp out/atmosphere/contents/0000000002052918/exefs.nsp
+	@cp toolbox.json out/atmosphere/contents/0000000002052918/toolbox.json
 
 dclight-nro: $(BUILD)
 	@echo Building DClight-nro...

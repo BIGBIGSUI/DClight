@@ -1,9 +1,9 @@
 {
 	"name":	"sysmodule",
 	"version":	"1.0.0",
-	"program_id":	"0x0100000002052918",
-	"program_id_range_min":	"0x0100000002052918",
-	"program_id_range_max":	"0x0100000002052918",
+	"program_id":	"0x0000000002052918",
+	"program_id_range_min":	"0x0000000002052918",
+	"program_id_range_max":	"0x0000000002052918",
 	"main_thread_stack_size":	"0x00004000",
 	"main_thread_priority":	49,
 	"default_cpu_id":	3,

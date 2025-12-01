@@ -23,18 +23,18 @@
 
 // 覆盖 libnx 的弱符号以强制 NV 服务类型和 tmem 大小（避免卡住）
 NvServiceType __attribute__((weak)) __nx_nv_service_type = NvServiceType_Application; // 默认 Auto 在 sysmodule 会选 System；强制走 nvdrv(u)
-u32 __attribute__((weak)) __nx_nv_transfermem_size = 0x200000; // 将 tmem 从 8MB 降到 2MB，规避大内存问题
+u32 __attribute__((weak)) __nx_nv_transfermem_size = 0x64000; // 将 tmem 从 8MB 降到 400KB，规避大内存问题
 
 // 内部堆大小（按需调整）
-#define INNER_HEAP_SIZE 0x400000
+#define INNER_HEAP_SIZE 0xAF000
 
 // 屏幕分辨率（与 tesla.hpp 对齐）
 #define SCREEN_WIDTH 1920
 #define SCREEN_HEIGHT 1080
 
 // 配置项（与 tesla cfg 对齐）
-static u16 CFG_FramebufferWidth = 448;
-static u16 CFG_FramebufferHeight = 720;
+static u16 CFG_FramebufferWidth = 1;
+static u16 CFG_FramebufferHeight = 1;
 static u16 CFG_LayerWidth = 0;
 static u16 CFG_LayerHeight = 0;
 static u16 CFG_LayerPosX = 0;
